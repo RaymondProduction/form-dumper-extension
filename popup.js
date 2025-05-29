@@ -19,13 +19,17 @@ document.getElementById('scan').addEventListener('click', () => {
       const fieldList = document.getElementById('fieldList');
       fieldList.innerHTML = '';
 
+      // Restore saved keys
+      const saved = localStorage.getItem('formDumperSelectedKeys');
+      const savedKeys = saved ? JSON.parse(saved) : [];
+
       keys.forEach((key) => {
         const label = document.createElement('label');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.name = 'field';
         checkbox.value = key;
-        checkbox.checked = true;
+        checkbox.checked = savedKeys.includes(key); // restore selection
         label.appendChild(checkbox);
         label.appendChild(document.createTextNode(' ' + key));
         fieldList.appendChild(label);
@@ -51,6 +55,8 @@ document.getElementById('deselectAll').addEventListener('click', () => {
 // Export logic (same as before)
 document.getElementById('export').addEventListener('click', () => {
   const selectedKeys = Array.from(document.querySelectorAll('input[name="field"]:checked')).map(cb => cb.value);
+  // Save selected keys
+  localStorage.setItem('formDumperSelectedKeys', JSON.stringify(selectedKeys));
 
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
     chrome.scripting.executeScript({
