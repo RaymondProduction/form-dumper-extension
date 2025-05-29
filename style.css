@@ -1,0 +1,13 @@
+#fileInput {
+  display: none;
+}
+
+#import-label {
+  display: block;
+  padding: 5px;
+  text-align: center;
+  background: #ddd;
+  margin-top: 10px;
+  cursor: pointer;
+  border-radius: 5px;
+}
