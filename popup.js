@@ -1,14 +1,69 @@
-document.getElementById('export').addEventListener('click', () => {
+document.getElementById('scan').addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
     chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => {
+        const elements = Array.from(document.querySelectorAll('textarea, input, [contenteditable="true"]'));
+        return elements.map((el, i) => {
+          const key =
+            el.getAttribute('aria-label') ||
+            el.getAttribute('placeholder') ||
+            el.name ||
+            el.className ||
+            `element-${i}`;
+          return key.trim();
+        });
+      }
+    }, (results) => {
+      const keys = results[0].result;
+      const fieldList = document.getElementById('fieldList');
+      fieldList.innerHTML = '';
+
+      keys.forEach((key) => {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'field';
+        checkbox.value = key;
+        checkbox.checked = true;
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(' ' + key));
+        fieldList.appendChild(label);
+        fieldList.appendChild(document.createElement('br'));
+      });
+
+      document.getElementById('fieldListControls').style.display = 'block';
+      document.getElementById('export').style.display = 'inline-block';
+    });
+  });
+});
+
+// Select All button
+document.getElementById('selectAll').addEventListener('click', () => {
+  document.querySelectorAll('input[name="field"]').forEach(cb => cb.checked = true);
+});
+
+// Deselect All button
+document.getElementById('deselectAll').addEventListener('click', () => {
+  document.querySelectorAll('input[name="field"]').forEach(cb => cb.checked = false);
+});
+
+// Export logic (same as before)
+document.getElementById('export').addEventListener('click', () => {
+  const selectedKeys = Array.from(document.querySelectorAll('input[name="field"]:checked')).map(cb => cb.value);
+
+  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      args: [selectedKeys],
+      func: (selected) => {
         // This script is designed to work with Gradio-based UIs like AUTOMATIC1111's WebUI.
         // Gradio often uses custom elements such as <div contenteditable="true"> instead of standard <textarea> or <input>,
         // and those elements may lack traditional identifiers like id or name.
         // To handle this, we collect all input-like elements, including contenteditable divs,
         // and use attributes like aria-label, placeholder, or className as keys for identifying them in the export/import process.
         // This makes the extension compatible with dynamic UIs and supports prompt/negative prompt editing.
+
         const elements = Array.from(document.querySelectorAll('textarea, input, [contenteditable="true"]'));
         const data = {};
 
@@ -21,7 +76,7 @@ document.getElementById('export').addEventListener('click', () => {
             `element-${i}`;
 
           const value = el.tagName === 'DIV' && el.isContentEditable ? el.innerText : el.value;
-          if (value && key) {
+          if (value && key && selected.includes(key.trim())) {
             data[key.trim()] = value;
           }
         });
@@ -38,6 +93,7 @@ document.getElementById('export').addEventListener('click', () => {
   });
 });
 
+// Import (same as before, with input event dispatching for Gradio)
 document.getElementById('fileInput').addEventListener('change', (event) => {
   const file = event.target.files[0];
   if (!file) return;
@@ -61,20 +117,15 @@ document.getElementById('fileInput').addEventListener('change', (event) => {
 
             const value = formData[key?.trim()];
             if (value !== undefined) {
+              // Gradio-based UIs (like AUTOMATIC1111) do not react to direct value assignments.
+              // To trigger reactivity in Svelte, we must dispatch an 'input' event after updating the value.
+              // This ensures the interface properly registers the change, as if the user typed it manually.
               if (el.tagName === 'DIV' && el.isContentEditable) {
                 el.innerText = value;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
               } else {
-
-                // Gradio-based UIs (like AUTOMATIC1111) do not react to direct value assignments.
-                // To trigger reactivity in Svelte, we must dispatch an 'input' event after updating the value.
-                // This ensures the interface properly registers the change, as if the user typed it manually.
-                if (el.tagName === 'DIV' && el.isContentEditable) {
-                  el.innerText = value;
-                  el.dispatchEvent(new Event('input', { bubbles: true }));
-                } else {
-                  el.value = value;
-                  el.dispatchEvent(new Event('input', { bubbles: true }));
-                }
+                el.value = value;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
               }
             }
           });

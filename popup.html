@@ -8,8 +8,18 @@
 </head>
 
 <body>
-  <button id="export">📤 Export</button>
-  <label id="import-label" for="fileInput">📥 Import JSON</label>
+  <button id="scan">🔍 Scan Fields</button>
+
+  <div id="fieldListControls" style="display:none; margin-top: 10px;">
+    <button id="selectAll">✅ Select All</button>
+    <button id="deselectAll">❌ Deselect All</button>
+  </div>
+
+  <div id="fieldList" style="margin-top: 10px;"></div>
+
+  <button id="export" style="display: none; margin-top: 10px;">📤 Confirm & Export</button>
+
+  <label id="import-label" for="fileInput" style="display:block; margin-top: 20px;">📥 Import JSON</label>
   <input type="file" id="fileInput" accept=".json" />
   <script src="popup.js" defer></script>
 </body>
