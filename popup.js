@@ -15,6 +15,10 @@ document.getElementById('scan').addEventListener('click', () => {
         });
       }
     }, (results) => {
+      // Normalize all keys by trimming whitespace before de-duplicating.
+      // This ensures that visually identical keys like "prompt", " prompt", and "prompt "
+      // are treated as the same entry and appear only once in the selection list.
+      // Using Set guarantees uniqueness in the list of scanned fields.
       const keys = [...new Set(results[0].result.map(key => key.trim()))];
       const fieldList = document.getElementById('fieldList');
       fieldList.innerHTML = '';
