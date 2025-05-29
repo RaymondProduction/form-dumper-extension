@@ -64,7 +64,17 @@ document.getElementById('fileInput').addEventListener('change', (event) => {
               if (el.tagName === 'DIV' && el.isContentEditable) {
                 el.innerText = value;
               } else {
-                el.value = value;
+
+                // Gradio-based UIs (like AUTOMATIC1111) do not react to direct value assignments.
+                // To trigger reactivity in Svelte, we must dispatch an 'input' event after updating the value.
+                // This ensures the interface properly registers the change, as if the user typed it manually.
+                if (el.tagName === 'DIV' && el.isContentEditable) {
+                  el.innerText = value;
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                } else {
+                  el.value = value;
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
               }
             }
           });
