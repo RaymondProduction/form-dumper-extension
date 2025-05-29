@@ -15,7 +15,7 @@ document.getElementById('scan').addEventListener('click', () => {
         });
       }
     }, (results) => {
-      const keys = results[0].result;
+      const keys = [...new Set(results[0].result.map(key => key.trim()))];
       const fieldList = document.getElementById('fieldList');
       fieldList.innerHTML = '';
 
