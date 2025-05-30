@@ -1,4 +1,5 @@
 let allFieldsData = []; // Store all field data for search
+let favoriteFields = []; // Store favorite field keys
 
 document.getElementById('scan').addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
@@ -41,13 +42,17 @@ document.getElementById('scan').addEventListener('click', () => {
       
       allFieldsData = uniqueFields;
       
-      // Restore saved keys
+      // Restore saved keys and favorites
       const saved = localStorage.getItem('formDumperSelectedKeys');
       const savedKeys = saved ? JSON.parse(saved) : [];
+      
+      const savedFavorites = localStorage.getItem('formDumperFavoriteKeys');
+      favoriteFields = savedFavorites ? JSON.parse(savedFavorites) : [];
       
       // Apply saved selections to field data
       allFieldsData.forEach(field => {
         field.selected = savedKeys.includes(field.key);
+        field.favorite = favoriteFields.includes(field.key);
       });
 
       renderFields(allFieldsData);
@@ -66,10 +71,13 @@ function renderFields(fieldsToRender) {
   fieldsToRender.forEach((field, index) => {
     const container = document.createElement('div');
     container.className = 'field-item';
-    container.style.cssText = 'border: 1px solid #ddd; padding: 8px; margin: 5px 0; border-radius: 4px; background: #f9f9f9;';
+    container.style.cssText = `border: 1px solid #ddd; padding: 8px; margin: 5px 0; border-radius: 4px; background: ${field.favorite ? '#fff3cd' : '#f9f9f9'};`;
     
-    const label = document.createElement('label');
-    label.style.cssText = 'display: block; cursor: pointer;';
+    const topRow = document.createElement('div');
+    topRow.style.cssText = 'display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;';
+    
+    const leftSide = document.createElement('div');
+    leftSide.style.cssText = 'display: flex; align-items: center; flex: 1;';
     
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -79,22 +87,84 @@ function renderFields(fieldsToRender) {
     checkbox.style.cssText = 'margin-right: 8px;';
     
     // Update field selection when checkbox changes
-    checkbox.addEventListener('change', () => {
+    checkbox.addEventListener('change', (e) => {
+      e.stopPropagation(); // Prevent event bubbling
       field.selected = checkbox.checked;
     });
     
-    const fieldInfo = document.createElement('div');
-    fieldInfo.innerHTML = `
-      <strong>${field.key}</strong> 
-      <small style="color: #666;">(${field.element}${field.type !== 'text' ? ', ' + field.type : ''})</small>
-      ${field.value ? `<div style="margin-top: 4px; font-size: 12px; color: #555; max-height: 40px; overflow: hidden;">${escapeHtml(field.value.substring(0, 100))}${field.value.length > 100 ? '...' : ''}</div>` : ''}
-    `;
+    // Prevent checkbox click from bubbling to container
+    checkbox.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
     
-    label.appendChild(checkbox);
-    label.appendChild(fieldInfo);
-    container.appendChild(label);
+    const fieldName = document.createElement('strong');
+    fieldName.textContent = field.key;
+    fieldName.style.cssText = 'margin-right: 8px;';
+    
+    const fieldType = document.createElement('small');
+    fieldType.textContent = `(${field.element}${field.type !== 'text' ? ', ' + field.type : ''})`;
+    fieldType.style.cssText = 'color: #666;';
+    
+    leftSide.appendChild(checkbox);
+    leftSide.appendChild(fieldName);
+    leftSide.appendChild(fieldType);
+    
+    // Star button
+    const starButton = document.createElement('button');
+    starButton.innerHTML = field.favorite ? '⭐' : '☆';
+    starButton.title = field.favorite ? 'Remove from favorites' : 'Add to favorites';
+    starButton.style.cssText = 'background: none; border: none; font-size: 16px; cursor: pointer; padding: 2px 6px; margin-left: 8px; color: #f39c12;';
+    
+    starButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFavorite(field, starButton, container);
+    });
+    
+    topRow.appendChild(leftSide);
+    topRow.appendChild(starButton);
+    
+    container.appendChild(topRow);
+    
+    // Field value (if exists)
+    if (field.value) {
+      const fieldValue = document.createElement('div');
+      fieldValue.style.cssText = 'margin-top: 4px; font-size: 12px; color: #555; max-height: 40px; overflow: hidden; padding-left: 24px;';
+      fieldValue.textContent = field.value.substring(0, 100) + (field.value.length > 100 ? '...' : '');
+      container.appendChild(fieldValue);
+    }
+    
+    // Make the whole container clickable (except star button and checkbox)
+    container.addEventListener('click', (e) => {
+      if (e.target !== starButton && e.target !== checkbox) {
+        checkbox.checked = !checkbox.checked;
+        field.selected = checkbox.checked;
+        checkbox.dispatchEvent(new Event('change'));
+      }
+    });
+    
     fieldList.appendChild(container);
   });
+}
+
+function toggleFavorite(field, starButton, container) {
+  field.favorite = !field.favorite;
+  starButton.innerHTML = field.favorite ? '⭐' : '☆';
+  starButton.title = field.favorite ? 'Remove from favorites' : 'Add to favorites';
+  container.style.background = field.favorite ? '#fff3cd' : '#f9f9f9';
+  
+  // Update favorites list
+  if (field.favorite) {
+    if (!favoriteFields.includes(field.key)) {
+      favoriteFields.push(field.key);
+    }
+  } else {
+    favoriteFields = favoriteFields.filter(key => key !== field.key);
+  }
+  
+  // Save to localStorage
+  localStorage.setItem('formDumperFavoriteKeys', JSON.stringify(favoriteFields));
+  console.log('Favorites updated:', favoriteFields);
 }
 
 function escapeHtml(text) {
@@ -106,14 +176,21 @@ function escapeHtml(text) {
 // Search functionality
 document.getElementById('searchInput').addEventListener('input', (e) => {
   const searchTerm = e.target.value.toLowerCase().trim();
+  const showFavoritesBtn = document.getElementById('showFavorites');
+  const showingFavoritesOnly = showFavoritesBtn.textContent.includes('Show All');
+  
+  // Determine base fields to search in
+  const baseFields = showingFavoritesOnly ? 
+    allFieldsData.filter(field => field.favorite) : 
+    allFieldsData;
   
   if (!searchTerm) {
-    renderFields(allFieldsData);
-    updateSearchResults(allFieldsData);
+    renderFields(baseFields);
+    updateSearchResults(baseFields);
     return;
   }
   
-  const filteredFields = allFieldsData.filter(field => {
+  const filteredFields = baseFields.filter(field => {
     return field.key.toLowerCase().includes(searchTerm) || 
            field.value.toLowerCase().includes(searchTerm);
   });
@@ -128,8 +205,28 @@ function updateSearchResults(fields) {
   searchResults.textContent = `${count} result${count !== 1 ? 's' : ''} found`;
 }
 
-// Select All button
+// Select All Fields button (all fields, not just visible)
 document.getElementById('selectAll').addEventListener('click', () => {
+  allFieldsData.forEach(field => {
+    field.selected = true;
+  });
+  // Update visible checkboxes
+  const visibleCheckboxes = document.querySelectorAll('input[name="field"]');
+  visibleCheckboxes.forEach(cb => cb.checked = true);
+});
+
+// Deselect All Fields button (all fields, not just visible)
+document.getElementById('deselectAll').addEventListener('click', () => {
+  allFieldsData.forEach(field => {
+    field.selected = false;
+  });
+  // Update visible checkboxes
+  const visibleCheckboxes = document.querySelectorAll('input[name="field"]');
+  visibleCheckboxes.forEach(cb => cb.checked = false);
+});
+
+// Select only currently visible/found fields
+document.getElementById('selectVisible').addEventListener('click', () => {
   const visibleCheckboxes = document.querySelectorAll('input[name="field"]');
   visibleCheckboxes.forEach(cb => {
     cb.checked = true;
@@ -139,8 +236,8 @@ document.getElementById('selectAll').addEventListener('click', () => {
   });
 });
 
-// Deselect All button
-document.getElementById('deselectAll').addEventListener('click', () => {
+// Deselect only currently visible/found fields
+document.getElementById('deselectVisible').addEventListener('click', () => {
   const visibleCheckboxes = document.querySelectorAll('input[name="field"]');
   visibleCheckboxes.forEach(cb => {
     cb.checked = false;
@@ -150,15 +247,47 @@ document.getElementById('deselectAll').addEventListener('click', () => {
   });
 });
 
-// Select Visible button
-document.getElementById('selectVisible').addEventListener('click', () => {
+// Show Favorites button
+document.getElementById('showFavorites').addEventListener('click', () => {
+  const showFavoritesBtn = document.getElementById('showFavorites');
+  const searchInput = document.getElementById('searchInput');
+  
+  if (showFavoritesBtn.textContent.includes('Show Favorites')) {
+    // Show only favorites
+    const favoriteFieldsData = allFieldsData.filter(field => field.favorite);
+    renderFields(favoriteFieldsData);
+    updateSearchResults(favoriteFieldsData);
+    showFavoritesBtn.innerHTML = '📋 Show All';
+    searchInput.value = '';
+    searchInput.placeholder = '🔍 Search in favorites...';
+  } else {
+    // Show all fields
+    renderFields(allFieldsData);
+    updateSearchResults(allFieldsData);
+    showFavoritesBtn.innerHTML = '⭐ Show Favorites';
+    searchInput.placeholder = '🔍 Search by field name or value...';
+  }
+});
+
+// Select Favorites button
+document.getElementById('selectFavorites').addEventListener('click', () => {
+  // First update the data
+  allFieldsData.forEach(field => {
+    if (field.favorite) {
+      field.selected = true;
+    }
+  });
+  
+  // Then update all visible checkboxes
   const visibleCheckboxes = document.querySelectorAll('input[name="field"]');
   visibleCheckboxes.forEach(cb => {
-    cb.checked = true;
-    // Update the corresponding field data
     const field = allFieldsData.find(f => f.key === cb.value);
-    if (field) field.selected = true;
+    if (field && field.favorite) {
+      cb.checked = true;
+    }
   });
+  
+  console.log('Selected favorites:', allFieldsData.filter(f => f.favorite && f.selected).map(f => f.key));
 });
 
 // Export logic
@@ -173,13 +302,6 @@ document.getElementById('export').addEventListener('click', () => {
       target: { tabId: tab.id },
       args: [selectedKeys],
       func: (selected) => {
-        // This script is designed to work with Gradio-based UIs like AUTOMATIC1111's WebUI.
-        // Gradio often uses custom elements such as <div contenteditable="true"> instead of standard <textarea> or <input>,
-        // and those elements may lack traditional identifiers like id or name.
-        // To handle this, we collect all input-like elements, including contenteditable divs,
-        // and use attributes like aria-label, placeholder, or className as keys for identifying them in the export/import process.
-        // This makes the extension compatible with dynamic UIs and supports prompt/negative prompt editing.
-
         const elements = Array.from(document.querySelectorAll('textarea, input, [contenteditable="true"]'));
         const data = {};
 
@@ -233,9 +355,6 @@ document.getElementById('fileInput').addEventListener('change', (event) => {
 
             const value = formData[key?.trim()];
             if (value !== undefined) {
-              // Gradio-based UIs (like AUTOMATIC1111) do not react to direct value assignments.
-              // To trigger reactivity in Svelte, we must dispatch an 'input' event after updating the value.
-              // This ensures the interface properly registers the change, as if the user typed it manually.
               if (el.tagName === 'DIV' && el.isContentEditable) {
                 el.innerText = value;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
