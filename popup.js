@@ -1,3 +1,5 @@
+let allFieldsData = []; // Store all field data for search
+
 document.getElementById('scan').addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
     chrome.scripting.executeScript({
@@ -11,54 +13,158 @@ document.getElementById('scan').addEventListener('click', () => {
             el.name ||
             el.className ||
             `element-${i}`;
-          return key.trim();
+          
+          const value = el.tagName === 'DIV' && el.isContentEditable ? el.innerText : el.value;
+          
+          return {
+            key: key.trim(),
+            value: value || '',
+            element: el.tagName,
+            type: el.type || 'text'
+          };
         });
       }
     }, (results) => {
-      // Normalize all keys by trimming whitespace before de-duplicating.
-      // This ensures that visually identical keys like "prompt", " prompt", and "prompt "
-      // are treated as the same entry and appear only once in the selection list.
-      // Using Set guarantees uniqueness in the list of scanned fields.
-      const keys = [...new Set(results[0].result.map(key => key.trim()))];
-      const fieldList = document.getElementById('fieldList');
-      fieldList.innerHTML = '';
-
+      // Store all fields data
+      allFieldsData = results[0].result;
+      
+      // Remove duplicates by key
+      const uniqueFields = [];
+      const seenKeys = new Set();
+      
+      allFieldsData.forEach(field => {
+        if (!seenKeys.has(field.key)) {
+          seenKeys.add(field.key);
+          uniqueFields.push(field);
+        }
+      });
+      
+      allFieldsData = uniqueFields;
+      
       // Restore saved keys
       const saved = localStorage.getItem('formDumperSelectedKeys');
       const savedKeys = saved ? JSON.parse(saved) : [];
-
-      keys.forEach((key) => {
-        const label = document.createElement('label');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.name = 'field';
-        checkbox.value = key;
-        checkbox.checked = savedKeys.includes(key); // restore selection
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(' ' + key));
-        fieldList.appendChild(label);
-        fieldList.appendChild(document.createElement('br'));
+      
+      // Apply saved selections to field data
+      allFieldsData.forEach(field => {
+        field.selected = savedKeys.includes(field.key);
       });
 
+      renderFields(allFieldsData);
+      document.getElementById('searchContainer').style.display = 'block';
       document.getElementById('fieldListControls').style.display = 'block';
       document.getElementById('export').style.display = 'inline-block';
+      updateSearchResults(allFieldsData);
     });
   });
 });
 
+function renderFields(fieldsToRender) {
+  const fieldList = document.getElementById('fieldList');
+  fieldList.innerHTML = '';
+
+  fieldsToRender.forEach((field, index) => {
+    const container = document.createElement('div');
+    container.className = 'field-item';
+    container.style.cssText = 'border: 1px solid #ddd; padding: 8px; margin: 5px 0; border-radius: 4px; background: #f9f9f9;';
+    
+    const label = document.createElement('label');
+    label.style.cssText = 'display: block; cursor: pointer;';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.name = 'field';
+    checkbox.value = field.key;
+    checkbox.checked = field.selected;
+    checkbox.style.cssText = 'margin-right: 8px;';
+    
+    // Update field selection when checkbox changes
+    checkbox.addEventListener('change', () => {
+      field.selected = checkbox.checked;
+    });
+    
+    const fieldInfo = document.createElement('div');
+    fieldInfo.innerHTML = `
+      <strong>${field.key}</strong> 
+      <small style="color: #666;">(${field.element}${field.type !== 'text' ? ', ' + field.type : ''})</small>
+      ${field.value ? `<div style="margin-top: 4px; font-size: 12px; color: #555; max-height: 40px; overflow: hidden;">${escapeHtml(field.value.substring(0, 100))}${field.value.length > 100 ? '...' : ''}</div>` : ''}
+    `;
+    
+    label.appendChild(checkbox);
+    label.appendChild(fieldInfo);
+    container.appendChild(label);
+    fieldList.appendChild(container);
+  });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Search functionality
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  const searchTerm = e.target.value.toLowerCase().trim();
+  
+  if (!searchTerm) {
+    renderFields(allFieldsData);
+    updateSearchResults(allFieldsData);
+    return;
+  }
+  
+  const filteredFields = allFieldsData.filter(field => {
+    return field.key.toLowerCase().includes(searchTerm) || 
+           field.value.toLowerCase().includes(searchTerm);
+  });
+  
+  renderFields(filteredFields);
+  updateSearchResults(filteredFields);
+});
+
+function updateSearchResults(fields) {
+  const searchResults = document.getElementById('searchResults');
+  const count = fields.length;
+  searchResults.textContent = `${count} result${count !== 1 ? 's' : ''} found`;
+}
+
 // Select All button
 document.getElementById('selectAll').addEventListener('click', () => {
-  document.querySelectorAll('input[name="field"]').forEach(cb => cb.checked = true);
+  const visibleCheckboxes = document.querySelectorAll('input[name="field"]');
+  visibleCheckboxes.forEach(cb => {
+    cb.checked = true;
+    // Update the corresponding field data
+    const field = allFieldsData.find(f => f.key === cb.value);
+    if (field) field.selected = true;
+  });
 });
 
 // Deselect All button
 document.getElementById('deselectAll').addEventListener('click', () => {
-  document.querySelectorAll('input[name="field"]').forEach(cb => cb.checked = false);
+  const visibleCheckboxes = document.querySelectorAll('input[name="field"]');
+  visibleCheckboxes.forEach(cb => {
+    cb.checked = false;
+    // Update the corresponding field data
+    const field = allFieldsData.find(f => f.key === cb.value);
+    if (field) field.selected = false;
+  });
 });
 
-// Export logic (same as before)
+// Select Visible button
+document.getElementById('selectVisible').addEventListener('click', () => {
+  const visibleCheckboxes = document.querySelectorAll('input[name="field"]');
+  visibleCheckboxes.forEach(cb => {
+    cb.checked = true;
+    // Update the corresponding field data
+    const field = allFieldsData.find(f => f.key === cb.value);
+    if (field) field.selected = true;
+  });
+});
+
+// Export logic
 document.getElementById('export').addEventListener('click', () => {
-  const selectedKeys = Array.from(document.querySelectorAll('input[name="field"]:checked')).map(cb => cb.value);
+  const selectedKeys = allFieldsData.filter(field => field.selected).map(field => field.key);
+  
   // Save selected keys
   localStorage.setItem('formDumperSelectedKeys', JSON.stringify(selectedKeys));
 
@@ -103,7 +209,7 @@ document.getElementById('export').addEventListener('click', () => {
   });
 });
 
-// Import (same as before, with input event dispatching for Gradio)
+// Import functionality
 document.getElementById('fileInput').addEventListener('change', (event) => {
   const file = event.target.files[0];
   if (!file) return;

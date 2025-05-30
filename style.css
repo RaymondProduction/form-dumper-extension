@@ -1,13 +1,106 @@
+body {
+  width: 350px;
+  padding: 10px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+button {
+  padding: 8px 12px;
+  margin: 2px;
+  border: none;
+  border-radius: 4px;
+  background: #4CAF50;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+button:hover {
+  background: #45a049;
+}
+
+button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+}
+
 #fileInput {
   display: none;
 }
 
 #import-label {
   display: block;
-  padding: 5px;
+  padding: 8px;
   text-align: center;
   background: #ddd;
   margin-top: 10px;
   cursor: pointer;
   border-radius: 5px;
+  font-size: 12px;
+}
+
+#import-label:hover {
+  background: #ccc;
+}
+
+#searchInput {
+  width: calc(100% - 12px);
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+#searchInput:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+.field-item {
+  border: 1px solid #ddd;
+  padding: 8px;
+  margin: 5px 0;
+  border-radius: 4px;
+  background: #f9f9f9;
+}
+
+.field-item:hover {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+.field-item label {
+  display: block;
+  cursor: pointer;
+  margin: 0;
+}
+
+.field-item input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+#fieldList {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 5px;
+  background: white;
+}
+
+#fieldList:empty {
+  border: none;
+  padding: 0;
+}
+
+#searchResults {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+}
+
+#fieldListControls button {
+  font-size: 11px;
+  padding: 4px 8px;
 }
