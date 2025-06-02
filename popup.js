@@ -1,9 +1,10 @@
+const api = chrome || browser;
 let allFieldsData = []; // Store all field data for search
 let favoriteFields = []; // Store favorite field keys
 
 document.getElementById('scan').addEventListener('click', () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-    chrome.scripting.executeScript({
+  api.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    api.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => {
         const elements = Array.from(document.querySelectorAll('textarea, input, [contenteditable="true"]'));
@@ -297,8 +298,8 @@ document.getElementById('export').addEventListener('click', () => {
   // Save selected keys
   localStorage.setItem('formDumperSelectedKeys', JSON.stringify(selectedKeys));
 
-  chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-    chrome.scripting.executeScript({
+  api.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+    api.scripting.executeScript({
       target: { tabId: tab.id },
       args: [selectedKeys],
       func: (selected) => {
@@ -339,8 +340,8 @@ document.getElementById('fileInput').addEventListener('change', (event) => {
   const reader = new FileReader();
   reader.onload = () => {
     const jsonData = JSON.parse(reader.result);
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-      chrome.scripting.executeScript({
+    api.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+      api.scripting.executeScript({
         target: { tabId: tab.id },
         args: [jsonData],
         func: (formData) => {
